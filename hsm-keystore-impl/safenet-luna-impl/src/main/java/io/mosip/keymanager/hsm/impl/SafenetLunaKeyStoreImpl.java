@@ -100,6 +100,12 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
      */
     private String signAlgorithm;
 
+	private boolean enableKeyReferenceCache;
+
+	private Map<String, PrivateKeyEntry> privateKeyReferenceCache;
+
+	private Map<String, SecretKey> secretKeyReferenceCache;
+
     /**
      * The Keystore instance
      */
@@ -119,15 +125,25 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
         this.asymmetricKeyAlgorithm = params.get(KeymanagerConstant.ASYM_KEY_ALGORITHM);
         this.asymmetricKeyLength = Integer.valueOf(params.get(KeymanagerConstant.ASYM_KEY_SIZE));
         this.signAlgorithm = params.get(KeymanagerConstant.CERT_SIGN_ALGORITHM);
+		this.enableKeyReferenceCache = Boolean.parseBoolean(params.get(KeymanagerConstant.FLAG_KEY_REF_CACHE));
+
         initKeystore();
     }
 
     private void initKeystore() {
+		initKeyReferenceCache();
         lunaProvider = new LunaProvider();
         addProvider();
         partitionPwdCharArr = getKeystorePwd();
         this.keyStore = getKeystoreInstance();
     }
+
+	private void initKeyReferenceCache() {
+		if(!enableKeyReferenceCache)
+			return;
+		this.privateKeyReferenceCache = new ConcurrentHashMap<>();
+		this.secretKeyReferenceCache = new ConcurrentHashMap<>();
+	}
 
     private char[] getKeystorePwd() {
         if (keystorePass.trim().length() == 0) {
@@ -189,12 +205,19 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
 	@SuppressWarnings("findsecbugs:HARD_CODE_PASSWORD")
 	@Override
 	public PrivateKeyEntry getAsymmetricKey(String alias) {
+		PrivateKeyEntry privateKeyEntry = getPrivateKeyEntryFromCache(alias);
+		if(privateKeyEntry != null)
+			return privateKeyEntry;
 
         try {
             if (keyStore.entryInstanceOf(alias, PrivateKeyEntry.class)) {
                 LOGGER.debug("sessionId", "KeyStoreImpl", "getAsymmetricKey", "alias is instanceof keystore");
                 ProtectionParameter password = getPasswordProtection();
-                return (PrivateKeyEntry) keyStore.getEntry(alias, password);
+				privateKeyEntry = (PrivateKeyEntry) keyStore.getEntry(alias, password);
+					if (privateKeyEntry != null) {
+						LOGGER.debug("sessionId", "KeyStoreImpl", "getAsymmetricKey", "privateKeyEntry is not null");
+						break;
+					}
             } else {
                 throw new NoSuchSecurityProviderException(KeymanagerErrorCode.NO_SUCH_ALIAS.getErrorCode(),
                         KeymanagerErrorCode.NO_SUCH_ALIAS.getErrorMessage() + alias);
@@ -203,6 +226,14 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
             throw new KeystoreProcessingException(KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorCode(),
                     KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorMessage() + e.getMessage(), e);
         } 
+
+		if (Objects.isNull(privateKeyEntry)) {
+			LOGGER.debug("sessionId", "KeyStoreImpl", "getAsymmetricKey", "privateKeyEntry is null");
+			throw new KeystoreProcessingException(KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorCode(),
+					KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorMessage() + expMessage, exp);
+		}
+		addPrivateKeyEntryToCache(alias, privateKeyEntry);
+		return privateKeyEntry;
 	}
 
 	@Override
@@ -228,12 +259,19 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
 	@SuppressWarnings("findsecbugs:HARD_CODE_PASSWORD")
 	@Override
 	public SecretKey getSymmetricKey(String alias) {
-		
+		SecretKey secretKey = getSecretKeyFromCache(alias);
+		if(secretKey != null)
+			return secretKey;
+
         try {
             if (keyStore.entryInstanceOf(alias, SecretKeyEntry.class)) {
                 ProtectionParameter password = getPasswordProtection();
                 SecretKeyEntry retrivedSecret = (SecretKeyEntry) keyStore.getEntry(alias, password);
-                return retrivedSecret.getSecretKey();
+				secretKey = retrivedSecret.getSecretKey();
+				if (secretKey != null) {
+					LOGGER.debug("sessionId", "KeyStoreImpl", "getSymmetricKey", "secretKey is not null");
+					break;
+				}
             } else {
                 throw new NoSuchSecurityProviderException(KeymanagerErrorCode.NO_SUCH_ALIAS.getErrorCode(),
                         KeymanagerErrorCode.NO_SUCH_ALIAS.getErrorMessage() + alias);
@@ -242,6 +280,14 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
             throw new KeystoreProcessingException(KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorCode(),
                     KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorMessage() + e.getMessage(), e);
         } 			
+
+		if (Objects.isNull(secretKey)) {
+			LOGGER.debug("sessionId", "KeyStoreImpl", "getSymmetricKey", "secretKey is null");
+			throw new KeystoreProcessingException(KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorCode(),
+					KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorMessage() + expMessage, exp);
+		}
+		addSecretKeyToCache(alias, secretKey);
+		return secretKey;
 	}
 
 	@Override
@@ -370,4 +416,33 @@ public class SafenetLunaKeyStoreImpl implements io.mosip.kernel.core.keymanager.
 					KeymanagerErrorCode.KEYSTORE_PROCESSING_ERROR.getErrorMessage() + e.getMessage(), e);
 		}
     }
+
+	private void addPrivateKeyEntryToCache(String alias, PrivateKeyEntry privateKeyEntry) {
+		if(!enableKeyReferenceCache)
+			return;
+		LOGGER.debug("sessionId", "KeyStoreImpl", "addPrivateKeyEntryToCache",
+				"Adding private key reference to map for alias " + alias);
+		this.privateKeyReferenceCache.put(alias, privateKeyEntry);
+	}
+
+	private PrivateKeyEntry getPrivateKeyEntryFromCache(String alias) {
+		if(!enableKeyReferenceCache)
+			return null;
+		return this.privateKeyReferenceCache.get(alias);
+	}
+
+
+	private void addSecretKeyToCache(String alias, SecretKey secretKey) {
+		if(!enableKeyReferenceCache)
+			return;
+		LOGGER.debug("sessionId", "KeyStoreImpl", "addSecretKeyToCache",
+				"Adding secretKey reference to map for alias " + alias);
+		this.secretKeyReferenceCache.put(alias, secretKey);
+	}
+
+	private SecretKey getSecretKeyFromCache(String alias) {
+		if(!enableKeyReferenceCache)
+			return null;
+		return this.secretKeyReferenceCache.get(alias);
+	}
 }
