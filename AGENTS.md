@@ -149,17 +149,18 @@ hsm-ref-impl/
 ## Development Workflow
 
 1. Fork the repository and clone your fork.
-2. Branch from `develop` (the repository's actual integration branch —
-   `git ls-remote` shows both `develop` and `develop-java21`; `develop` is
-   the current MOSIP target branch for new work unless a maintainer tells
-   you otherwise).
-3. Make changes inside the relevant module directory only
-   (`hsm-keystore-impl/<vendor>-impl/`).
+2. Branch from `develop`, unless repository settings or a maintainer
+   specify another target branch.
+3. Keep code changes scoped to the relevant module directory
+   (`hsm-keystore-impl/<vendor>-impl/`) where practical — modules are
+   built and released independently. Root documentation, shared
+   contract updates, and repository-level workflow changes are
+   naturally repo-wide and are not bound by this.
 4. Build that module with Maven as shown above and fix any compile errors.
    Because there are no unit tests, manual/integration verification against
-   real (or vendor-provided test) HSM hardware is the only way to confirm
-   runtime behavior — do not assume a clean `mvn compile` means the HSM
-   integration works.
+   real (or vendor-provided test) HSM hardware is required to confirm HSM
+   provider, authentication, and key-operation integration — do not assume
+   a clean `mvn compile` means the HSM integration works.
 5. Keep the three implementations' method behavior consistent with each
    other and with the shared `io.mosip.kernel.core.keymanager.spi.KeyStore`
    contract unless a vendor SDK genuinely forces a difference; note any such
@@ -202,8 +203,9 @@ hsm-ref-impl/
 1. Verify any new build, test, or config claim against the actual
    `pom.xml` and `.java` files in the relevant module before writing it
    down.
-2. Work inside a single module directory (`hsm-keystore-impl/<vendor>-impl`)
-   per change, and build that module with Maven to confirm it compiles.
+2. Prefer working inside a single module directory
+   (`hsm-keystore-impl/<vendor>-impl`) per change, and build that module
+   with Maven to confirm it compiles.
 3. Keep the three vendor implementations' public method behavior aligned
    with the shared `io.mosip.kernel.core.keymanager.spi.KeyStore` interface
    contract.
