@@ -110,16 +110,16 @@ hsm-ref-impl/
   LICENSE
   README.md
   hsm-keystore-impl/
-    aws-cloudhsm-impl/
+    aws-cloudhsm-impl/       # AGENTS.md
       pom.xml
       src/main/java/io/mosip/keymanager/hsm/impl/
         AWSCloudHSMKeyStoreImpl.java
         ApplicationCallBackHandler.java
-    ncipher-hsm-impl/
+    ncipher-hsm-impl/        # AGENTS.md
       pom.xml
       src/main/java/io/mosip/keymanager/hsm/impl/
         NCipherHSMKeyStoreImpl.java
-    safenet-luna-impl/
+    safenet-luna-impl/       # AGENTS.md
       pom.xml
       src/main/java/io/mosip/keymanager/hsm/impl/
         SafenetLunaKeyStoreImpl.java
@@ -140,11 +140,13 @@ hsm-ref-impl/
   reference cache (`enableKeyReferenceCache`, controlled by the
   `KeymanagerConstant.FLAG_KEY_REF_CACHE` param) — the other two modules do
   not cache key entries.
-- This is a small, flat repository. A single root `AGENTS.md` is
-  sufficient; no per-module `AGENTS.md` files were added because the three
-  modules share one build tool, one Java target, and one interface
-  contract, and differ only in which vendor JAR and credential fields they
-  use (documented above).
+- Each of the three modules also has its own `AGENTS.md`
+  (`hsm-keystore-impl/<vendor>-impl/AGENTS.md`) documenting that
+  module's implementation-class internals (constructor flow, vendor-SDK-
+  specific behavior, resilience/caching differences between modules) in
+  more depth than is useful to repeat here. Start with this root file
+  for what's shared (build tool, Java target, interface contract,
+  credential handling); go to the module guide for the rest.
 
 ## Development Workflow
 
